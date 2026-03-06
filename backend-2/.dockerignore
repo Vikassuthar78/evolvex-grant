@@ -20,7 +20,7 @@ Thumbs.db
 *.log
 logs/
 .cache/
-# ML model files (but NOT app/models/ Python package)
+# ML model files (not Python packages)
 *.safetensors
 *.bin
 sentence_transformers/
@@ -30,6 +30,11 @@ uploads/
 temp/
 .git/
 .gitignore
+
+# Ensure app subpackages are NOT excluded
+!app/
+!app/models/
+!app/models/*
 .railwayignore
 nixpacks.toml
 Procfile
