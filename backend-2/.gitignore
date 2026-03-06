@@ -44,7 +44,7 @@ logs/
 
 # AI Model cache (large files)
 .cache/
-models/
+/models/
 *.safetensors
 *.bin
 
