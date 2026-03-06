@@ -8,7 +8,6 @@ import { Grant } from '@/types';
 import { motion } from 'framer-motion';
 import { Search, SlidersHorizontal, Sparkles, Loader2 } from 'lucide-react';
 
-const categories = ['All', 'Research & Development', 'Energy & Climate', 'Health & Biotech', 'Agriculture', 'Economic Development', 'Technology & Innovation'];
 const sortOptions = ['Fit Score', 'Deadline', 'Amount', 'Probability'];
 
 export default function DiscoverPage() {
@@ -18,35 +17,77 @@ export default function DiscoverPage() {
 
     const [grants, setGrants] = useState<Grant[]>([]);
     const [isLoading, setIsLoading] = useState(true);
-
+    // Compute unique categories from actual grants data
+    const categories = ['All', ...Array.from(new Set(grants.map(g => g.category).filter(Boolean))).sort()];
     useEffect(() => {
         const fetchGrants = async () => {
-            try {
-                // Determine sector from onboarding profile if available
-                let sector = undefined;
-                const storedData = localStorage.getItem('grantagent_onboarding_data');
-                if (storedData) {
-                    const parsed = JSON.parse(storedData);
-                    sector = parsed.sector;
-                }
+            const orgId = localStorage.getItem('org_id');
 
-                // Call actual backend endpoint
-                const data = await grantsService.discover({ sector });
-                setGrants(data);
-            } catch (error) {
-                console.error("Failed to load grants", error);
-                setGrants([]);
-            } finally {
-                setIsLoading(false);
+            // First load: show DB grants scored against org profile (fast)
+            try {
+                const dbData = await grantsService.getAll(orgId || undefined);
+                if (dbData?.grants?.length) {
+                    // Map DB fields to frontend format
+                    const mapped = dbData.grants.map((g: any) => {
+                        const rawAmount = g.amount;
+                        let amount = 0;
+                        if (typeof rawAmount === 'number') amount = rawAmount;
+                        else if (typeof rawAmount === 'string') {
+                            const nums = rawAmount.match(/[\d,]+/g);
+                            if (nums) amount = Math.max(...nums.map((n: string) => parseInt(n.replace(/,/g, ''), 10) || 0));
+                        }
+                        return {
+                            ...g,
+                            amount,
+                            fitScore: g.fitScore ?? g.fit_score ?? 0,
+                            probabilityScore: g.probabilityScore ?? Math.round((g.fitScore ?? g.fit_score ?? 0) * 0.85 * 10) / 10,
+                            status: g.status || 'open',
+                            description: g.description || g.title || '',
+                            eligibility: Array.isArray(g.eligibility) ? g.eligibility : typeof g.eligibility === 'string' && g.eligibility ? [g.eligibility] : [],
+                            keywords: Array.isArray(g.keywords) ? g.keywords : typeof g.keywords === 'string' ? g.keywords.split(/[,\s]+/).filter(Boolean) : [],
+                            category: g.category || 'Federal',
+                            funder: g.funder || 'Federal Agency',
+                        };
+                    });
+                    setGrants(mapped);
+                    setIsLoading(false);
+                }
+            } catch {
+                // DB fetch failed, continue to discover
             }
+
+            // Then discover fresh grants from Grants.gov (slow but live)
+            if (orgId) {
+                try {
+                    const data = await grantsService.discover({ org_id: orgId, limit: 15 });
+                    if (data?.grants?.length) {
+                        // Merge: discover results first, then DB grants not in discover
+                        setGrants(prev => {
+                            const discoverTitles = new Set(data.grants.map((g: any) => g.title));
+                            const uniqueDb = prev.filter(g => !discoverTitles.has(g.title));
+                            return [...data.grants, ...uniqueDb];
+                        });
+                    }
+                } catch (error) {
+                    console.error("Discovery failed, using cached grants", error);
+                }
+            }
+
+            setIsLoading(false);
         };
         fetchGrants();
     }, []);
 
     const filtered = grants
         .filter(g => {
-            const matchesQuery = !query || g.title.toLowerCase().includes(query.toLowerCase()) || g.funder.toLowerCase().includes(query.toLowerCase()) || g.keywords.some(k => k.toLowerCase().includes(query.toLowerCase()));
-            const matchesCategory = selectedCategory === 'All' || g.category === selectedCategory;
+            const kw: string[] = Array.isArray(g.keywords) ? g.keywords : typeof g.keywords === 'string' ? (g.keywords as string).split(/[,\s]+/).filter(Boolean) : [];
+            const matchesQuery = !query || g.title.toLowerCase().includes(query.toLowerCase()) || g.funder.toLowerCase().includes(query.toLowerCase()) || kw.some((k: string) => k.toLowerCase().includes(query.toLowerCase()));
+            const cat = selectedCategory.toLowerCase();
+            const gCat = (g.category || '').toLowerCase();
+            const gTitle = (g.title || '').toLowerCase();
+            const gDesc = (g.description || '').toLowerCase();
+            const gKw = kw.map((k: string) => k.toLowerCase()).join(' ');
+            const matchesCategory = selectedCategory === 'All' || gCat === cat || gCat.includes(cat) || cat.includes(gCat) || gTitle.includes(cat) || gDesc.includes(cat) || gKw.includes(cat);
             return matchesQuery && matchesCategory;
         })
         .sort((a, b) => {

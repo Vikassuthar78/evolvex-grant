@@ -3,7 +3,6 @@
 import { useState, Suspense } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Zap, Mail, Lock, ArrowRight, Github, Chrome } from 'lucide-react';
-import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/components/AuthProvider';
 
@@ -14,12 +13,41 @@ function AuthContent() {
     const [isLogin, setIsLogin] = useState(!isSignupUrl);
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
-    const { login } = useAuth();
+    const [error, setError] = useState('');
+    const [loading, setLoading] = useState(false);
+    const [successMsg, setSuccessMsg] = useState('');
+    const { login, signUp } = useAuth();
     const router = useRouter();
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        login(email || 'founder@startup.com');
+        setError('');
+        setSuccessMsg('');
+        setLoading(true);
+
+        try {
+            if (isLogin) {
+                const result = await login(email, password);
+                if (result.error) {
+                    setError(result.error);
+                }
+                // Redirect handled by AuthProvider onAuthStateChange
+            } else {
+                const result = await signUp(email, password, 'founder');
+                if (result.error) {
+                    setError(result.error);
+                } else {
+                    setSuccessMsg('Account created! Check your email to confirm, then log in.');
+                    setIsLogin(true);
+                    setEmail('');
+                    setPassword('');
+                }
+            }
+        } catch {
+            setError('Something went wrong. Please try again.');
+        } finally {
+            setLoading(false);
+        }
     };
 
     return (
@@ -46,20 +74,30 @@ function AuthContent() {
                     {/* Tabs */}
                     <div className="flex items-center gap-1 p-1 bg-surface rounded-xl mb-8">
                         <button
-                            onClick={() => setIsLogin(true)}
-                            className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-all ${isLogin ? 'bg-accent-cyan/10 text-accent-cyan' : 'text-text-muted hover:text-text-secondary'
-                                }`}
+                            onClick={() => { setIsLogin(true); setError(''); setSuccessMsg(''); }}
+                            className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-all ${isLogin ? 'bg-accent-cyan/10 text-accent-cyan' : 'text-text-muted hover:text-text-secondary'}`}
                         >
                             Log In
                         </button>
                         <button
-                            onClick={() => setIsLogin(false)}
-                            className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-all ${!isLogin ? 'bg-accent-cyan/10 text-accent-cyan' : 'text-text-muted hover:text-text-secondary'
-                                }`}
+                            onClick={() => { setIsLogin(false); setError(''); setSuccessMsg(''); }}
+                            className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-all ${!isLogin ? 'bg-accent-cyan/10 text-accent-cyan' : 'text-text-muted hover:text-text-secondary'}`}
                         >
                             Sign Up
                         </button>
                     </div>
+
+                    {/* Error / Success messages */}
+                    {error && (
+                        <div className="mb-4 p-3 rounded-xl bg-accent-rose/10 border border-accent-rose/20 text-accent-rose text-sm">
+                            {error}
+                        </div>
+                    )}
+                    {successMsg && (
+                        <div className="mb-4 p-3 rounded-xl bg-accent-green/10 border border-accent-green/20 text-accent-green text-sm">
+                            {successMsg}
+                        </div>
+                    )}
 
                     <AnimatePresence mode="wait">
                         <motion.form
@@ -71,16 +109,6 @@ function AuthContent() {
                             onSubmit={handleSubmit}
                             className="space-y-4"
                         >
-                            {!isLogin && (
-                                <div>
-                                    <label className="text-xs font-medium text-text-secondary mb-1.5 block">Organization Name</label>
-                                    <input
-                                        type="text"
-                                        placeholder="Acme Inc."
-                                        className="w-full bg-surface border border-border rounded-xl px-4 py-3 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent-cyan/50 focus:ring-1 focus:ring-accent-cyan/20 transition-all"
-                                    />
-                                </div>
-                            )}
                             <div>
                                 <label className="text-xs font-medium text-text-secondary mb-1.5 block">Email</label>
                                 <div className="relative">
@@ -89,7 +117,8 @@ function AuthContent() {
                                         type="email"
                                         value={email}
                                         onChange={(e) => setEmail(e.target.value)}
-                                        placeholder="founder@startup.com"
+                                        placeholder="you@email.com"
+                                        required
                                         className="w-full bg-surface border border-border rounded-xl pl-10 pr-4 py-3 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent-cyan/50 focus:ring-1 focus:ring-accent-cyan/20 transition-all"
                                     />
                                 </div>
@@ -103,6 +132,8 @@ function AuthContent() {
                                         value={password}
                                         onChange={(e) => setPassword(e.target.value)}
                                         placeholder="••••••••"
+                                        required
+                                        minLength={6}
                                         className="w-full bg-surface border border-border rounded-xl pl-10 pr-4 py-3 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent-cyan/50 focus:ring-1 focus:ring-accent-cyan/20 transition-all"
                                     />
                                 </div>
@@ -112,10 +143,17 @@ function AuthContent() {
                                 whileHover={{ scale: 1.01 }}
                                 whileTap={{ scale: 0.99 }}
                                 type="submit"
-                                className="w-full py-3 rounded-xl bg-gradient-to-r from-accent-cyan to-accent-green text-background font-semibold text-sm hover:shadow-lg hover:shadow-accent-cyan/20 transition-all flex items-center justify-center gap-2"
+                                disabled={loading}
+                                className="w-full py-3 rounded-xl bg-gradient-to-r from-accent-cyan to-accent-green text-background font-semibold text-sm hover:shadow-lg hover:shadow-accent-cyan/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                             >
-                                {isLogin ? 'Log In' : 'Create Account'}
-                                <ArrowRight className="w-4 h-4" />
+                                {loading ? (
+                                    <div className="w-5 h-5 border-2 border-background/30 border-t-background rounded-full animate-spin" />
+                                ) : (
+                                    <>
+                                        {isLogin ? 'Log In' : 'Create Account'}
+                                        <ArrowRight className="w-4 h-4" />
+                                    </>
+                                )}
                             </motion.button>
                         </motion.form>
                     </AnimatePresence>

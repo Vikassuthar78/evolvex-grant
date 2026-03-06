@@ -1,0 +1,37 @@
+# Implementation Plan: Migrating to Backend-2
+
+## Goal
+The user has requested to modify the existing frontend to integrate with the new `backend-2` architecture. `backend-2` is heavily reliant on a Supabase Postgres database and introduces a structured state machine for applications and organization profiles.
+
+## Key Changes Required
+
+### 1. Configure the Environment
+- `backend-2` requires a Supabase database instance. To test and run this properly, the `SUPABASE_URL` and `SUPABASE_ANON_KEY` or `SUPABASE_SERVICE_KEY` must be configured in `backend-2/.env`.
+- We will assume these are provided or will be provided.
+
+### 2. Rewrite [frontend/src/services/index.ts](file:///c:/Users/VIKAS%20SUTHAR/OneDrive/Desktop/NEW/frontend/src/services/index.ts)
+The API contract has changed significantly. We must update the frontend services layer to map to the new endpoints:
+- `organizationService.save` -> `POST /api/org/save` (Creates org profile in DB).
+- `organizationService.get` -> `GET /api/org/{org_id}`.
+- `grantsService.discover` -> `GET /api/grants/discover?org_id={id}` (Now requires an Org Context).
+- `applicationsService.create` -> `POST /api/applications/create` (Initializes a DRAFT application in DB).
+- `applicationsService.getAll` -> `GET /api/applications/org/{org_id}` (Fetches DB applications).
+- `narrativeService.generateFull` -> `POST /api/narrative/full-application` (Massive payload including org details).
+
+### 3. Update the Authentication / Onboarding Flow
+- Currently, the frontend assumes a generic "Founder" user.
+- With `backend-2`, an `org_id` is required for almost every action.
+- **Action:** Update the `/onboard` flow so that when it finishes, it securely posts the profile to `backend-2`, retrieves the newly created `org_id` (a UUID), and saves it to local storage (`localStorage.setItem('org_id', id)`).
+
+### 4. Update the Pages
+- **Discover (`/discover`)**: Read `org_id` from local storage. Pass it to `grantsService.discover`. Update the component to handle the new return structure (`{"success": true, "grants": [...]}`).
+- **Grant Detail (`/grant/[id]`)**: Update the "Apply" button. Instead of just routing to the studio, clicking apply must first call `POST /api/applications/create` with the `org_id` and `grant_id`. It will return an `application_id`. The user is then routed to `/apply/[application_id]`.
+- **Proposal Studio (`/apply/[id]`)**: This page must now fetch the specific [application](file:///c:/Users/VIKAS%20SUTHAR/OneDrive/Desktop/NEW/backend-2/app/api/application.py#116-124) state from the database via `GET /api/applications/{id}` instead of fetching the generic grant. The backend `/api/narrative/full-application` or `/api/narrative/generate` endpoint must be used.
+- **Applications (`/applications`)**: Read `org_id` from local storage and pass it to `applicationsService.getAll(org_id)` to list DB applications.
+
+## Execution Order
+1. Rewrite [services/index.ts](file:///c:/Users/VIKAS%20SUTHAR/OneDrive/Desktop/NEW/frontend/src/services/index.ts).
+2. Update `/onboard` flow to capture and store `org_id`.
+3. Update `/discover` and `/applications` lists.
+4. Update `/grant/[id]` Application creation flow.
+5. Update `/apply/[id]` Proposal Studio.

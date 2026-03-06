@@ -1,20 +1,78 @@
 'use client';
 
 import AppLayout from '@/components/layout/AppLayout';
+import { organizationService } from '@/services';
 import { motion } from 'framer-motion';
 import {
     Settings as SettingsIcon, User, Key, Users, Bell,
-    CheckCircle, XCircle, ExternalLink, ChevronRight,
+    CheckCircle, XCircle, ExternalLink, ChevronRight, Loader2, Save,
 } from 'lucide-react';
+import { useState, useEffect } from 'react';
 
 const apiServices = [
     { name: 'Grants.gov API', status: 'connected', description: 'Federal grant discovery' },
-    { name: 'OpenAI', status: 'ready', description: 'Narrative generation & embeddings' },
-    { name: 'Anthropic Claude', status: 'ready', description: 'Multi-agent orchestration' },
+    { name: 'Groq LLM', status: 'connected', description: 'Narrative generation (llama-3.1-8b)' },
     { name: 'Supabase', status: 'connected', description: 'Database & authentication' },
 ];
 
 export default function SettingsPage() {
+    const [orgData, setOrgData] = useState<any>(null);
+    const [isLoading, setIsLoading] = useState(true);
+    const [isSaving, setIsSaving] = useState(false);
+    const [saved, setSaved] = useState(false);
+    const [form, setForm] = useState({ name: '', email: '', organization: '', role: 'Founder & CEO' });
+
+    useEffect(() => {
+        const fetchOrg = async () => {
+            try {
+                const orgId = localStorage.getItem('org_id');
+                if (orgId) {
+                    const res = await organizationService.get(orgId);
+                    const data = res?.data || res;
+                    if (data) {
+                        setOrgData(data);
+                        setForm(prev => ({
+                            ...prev,
+                            organization: data.name || '',
+                            name: data.team_size || 'Team Lead',
+                        }));
+                    }
+                }
+                // Load user email from auth
+                const userStr = localStorage.getItem('grantagent_user');
+                if (userStr) {
+                    const user = JSON.parse(userStr);
+                    setForm(prev => ({ ...prev, email: user.email || '', name: user.name || prev.name }));
+                }
+            } catch (err) {
+                console.error("Settings fetch error:", err);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        fetchOrg();
+    }, []);
+
+    const handleSave = async () => {
+        setIsSaving(true);
+        try {
+            // Save user info to localStorage
+            const userStr = localStorage.getItem('grantagent_user');
+            if (userStr) {
+                const user = JSON.parse(userStr);
+                user.name = form.name;
+                user.email = form.email;
+                localStorage.setItem('grantagent_user', JSON.stringify(user));
+            }
+            setSaved(true);
+            setTimeout(() => setSaved(false), 2000);
+        } catch (err) {
+            console.error("Save error:", err);
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
     return (
         <AppLayout>
             <div className="space-y-6 max-w-4xl">
@@ -25,6 +83,13 @@ export default function SettingsPage() {
                     <p className="text-sm text-text-secondary mt-1">Manage your account, API integrations, and preferences</p>
                 </div>
 
+                {isLoading ? (
+                    <div className="glass-card p-12 flex flex-col items-center justify-center">
+                        <Loader2 className="w-8 h-8 text-accent-cyan animate-spin mb-4" />
+                        <p className="text-sm text-text-muted">Loading settings...</p>
+                    </div>
+                ) : (
+                <>
                 {/* Profile */}
                 <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass-card p-6">
                     <h2 className="text-base font-semibold mb-4 flex items-center gap-2">
@@ -34,34 +99,43 @@ export default function SettingsPage() {
                         <div>
                             <label className="text-xs font-medium text-text-secondary mb-1.5 block">Name</label>
                             <input
-                                defaultValue="Jane Founder"
+                                value={form.name}
+                                onChange={e => setForm(prev => ({ ...prev, name: e.target.value }))}
                                 className="w-full bg-surface border border-border rounded-xl px-4 py-2.5 text-sm text-text-primary focus:outline-none focus:border-accent-cyan/50 transition-all"
                             />
                         </div>
                         <div>
                             <label className="text-xs font-medium text-text-secondary mb-1.5 block">Email</label>
                             <input
-                                defaultValue="jane@grantagent.ai"
+                                value={form.email}
+                                onChange={e => setForm(prev => ({ ...prev, email: e.target.value }))}
                                 className="w-full bg-surface border border-border rounded-xl px-4 py-2.5 text-sm text-text-primary focus:outline-none focus:border-accent-cyan/50 transition-all"
                             />
                         </div>
                         <div>
                             <label className="text-xs font-medium text-text-secondary mb-1.5 block">Organization</label>
                             <input
-                                defaultValue="NovaTech Labs"
-                                className="w-full bg-surface border border-border rounded-xl px-4 py-2.5 text-sm text-text-primary focus:outline-none focus:border-accent-cyan/50 transition-all"
+                                value={form.organization}
+                                readOnly
+                                className="w-full bg-surface border border-border rounded-xl px-4 py-2.5 text-sm text-text-muted focus:outline-none transition-all cursor-not-allowed"
                             />
                         </div>
                         <div>
                             <label className="text-xs font-medium text-text-secondary mb-1.5 block">Role</label>
                             <input
-                                defaultValue="Founder & CEO"
+                                value={form.role}
+                                onChange={e => setForm(prev => ({ ...prev, role: e.target.value }))}
                                 className="w-full bg-surface border border-border rounded-xl px-4 py-2.5 text-sm text-text-primary focus:outline-none focus:border-accent-cyan/50 transition-all"
                             />
                         </div>
                     </div>
-                    <button className="mt-4 px-5 py-2 rounded-xl bg-accent-cyan/10 text-accent-cyan text-sm font-medium hover:bg-accent-cyan/20 transition-all">
-                        Save Changes
+                    <button
+                        onClick={handleSave}
+                        disabled={isSaving}
+                        className="mt-4 px-5 py-2 rounded-xl bg-accent-cyan/10 text-accent-cyan text-sm font-medium hover:bg-accent-cyan/20 transition-all flex items-center gap-2"
+                    >
+                        {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : saved ? <CheckCircle className="w-4 h-4" /> : <Save className="w-4 h-4" />}
+                        {saved ? 'Saved!' : 'Save Changes'}
                     </button>
                 </motion.div>
 
@@ -122,6 +196,8 @@ export default function SettingsPage() {
                         </button>
                     </div>
                 </motion.div>
+                </>
+                )}
             </div>
         </AppLayout>
     );

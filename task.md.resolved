@@ -1,0 +1,23 @@
+# Task Plan: Migrating Frontend to Backend-2 API
+
+## 1. Setup & Environment
+- [x] Configure [backend-2/.env](file:///c:/Users/VIKAS%20SUTHAR/OneDrive/Desktop/NEW/backend-2/.env) with Supabase keys and LLM keys.
+- [ ] Ensure `frontend/.env.local` points to `backend-2` port (usually 8000).
+
+## 2. API Services Refactor ([services/index.ts](file:///c:/Users/VIKAS%20SUTHAR/OneDrive/Desktop/NEW/frontend/src/services/index.ts))
+- [ ] Rebuild `organizationService` to support `/api/org/save` and capturing `org_id`.
+- [ ] Rebuild `grantsService.discover` to accept `org_id` in the GET request.
+- [ ] Replace `applicationsService` to use `/api/applications/create` and `/api/applications/org/{org_id}`.
+- [ ] Update `narrativeService.generateFull` to point to `/api/narrative/full-application` and handle the new payload containing project priorities and budgets.
+
+## 3. Frontend Pages Integration
+- [x] **Onboard Page (`/onboard`)**: Store the form locally. When user "Signs up", execute `organizationService.save()`, fetch the returned `org_id` (UUID), and store it in `localStorage`.
+- [x] **Discover Page (`/discover`)**: Fetch `org_id` from local storage. Pass it to the discovery endpoint. Map the returned list of grants from `backend-2` dictionary format into the UI state.
+- [x] **Grant Details (`/grant/[id]`)**: Refactor so the "Apply with AI" button calls `POST /applications/create` first to initialize an application dynamically in the database.
+- [x] **Proposal Studio (`/apply/[id]`)**: Since the route parameter is now an `app_id` (not just evaluating generic grants), update the interface to fetch the specific DRAFT application context from the database and populate the studio answers.
+- [x] **Overview / Applications (`/applications`)**: Refactor to dynamically list applications from the Supabase DB matching the active `org_id`.
+- [x] **Dashboard (`/dashboard`)**: Map database pipeline logic into dashboard visual charts.
+
+## 4. Deployment Readiness
+- [x] Configure [backend-2/render.yaml](file:///c:/Users/VIKAS%20SUTHAR/OneDrive/Desktop/NEW/backend-2/render.yaml) and necessary runtime files for Render deployment.
+- [x] Ensure `frontend` is Vercel-ready (Next.js is natively supported; documented the need for `NEXT_PUBLIC_API_URL` environment variables).

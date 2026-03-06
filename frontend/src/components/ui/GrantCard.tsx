@@ -17,6 +17,7 @@ function getDaysUntilDeadline(deadline: string) {
 }
 
 function formatAmount(amount: number) {
+    if (!amount || amount <= 0) return 'Varies';
     if (amount >= 1000000) return `$${(amount / 1000000).toFixed(1)}M`;
     if (amount >= 1000) return `$${(amount / 1000).toFixed(0)}K`;
     return `$${amount}`;
@@ -25,6 +26,16 @@ function formatAmount(amount: number) {
 export default function GrantCard({ grant, index }: GrantCardProps) {
     const daysLeft = getDaysUntilDeadline(grant.deadline);
     const isUrgent = daysLeft <= 14;
+    const keywords: string[] = Array.isArray(grant.keywords)
+        ? grant.keywords
+        : typeof grant.keywords === 'string'
+            ? (grant.keywords as unknown as string).split(/[,\s]+/).filter(Boolean)
+            : [];
+    const eligibility: string[] = Array.isArray(grant.eligibility)
+        ? grant.eligibility
+        : typeof grant.eligibility === 'string'
+            ? [grant.eligibility as unknown as string]
+            : [];
 
     return (
         <motion.div
@@ -55,7 +66,7 @@ export default function GrantCard({ grant, index }: GrantCardProps) {
 
                     {/* Tags */}
                     <div className="flex flex-wrap gap-1.5">
-                        {grant.keywords.slice(0, 3).map((kw) => (
+                        {keywords.slice(0, 3).map((kw) => (
                             <span key={kw} className="text-[11px] px-2 py-0.5 rounded-md bg-surface-hover border border-border text-text-muted">
                                 {kw}
                             </span>

@@ -22,7 +22,7 @@ const navItems = [
     { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
     { label: 'Discover Grants', href: '/discover', icon: Search },
     { label: 'Applications', href: '/applications', icon: FileText },
-    { label: 'Proposal Studio', href: '/apply/grant-1', icon: PenTool },
+    { label: 'Proposal Studio', href: '/apply', icon: PenTool },
     { label: 'Compliance', href: '/compliance', icon: ShieldCheck },
     { label: 'Review Center', href: '/review', icon: CheckCircle },
     { label: 'Org Memory', href: '/memory', icon: Brain },
@@ -65,7 +65,7 @@ export default function Sidebar() {
                     const Icon = item.icon;
 
                     return (
-                        <Link key={item.href} href={item.href}>
+                        <Link key={item.label} href={item.href}>
                             <motion.div
                                 whileHover={{ x: 4 }}
                                 whileTap={{ scale: 0.98 }}

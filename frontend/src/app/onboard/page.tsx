@@ -6,8 +6,11 @@ import AppLayout from '@/components/layout/AppLayout';
 import { useRouter } from 'next/navigation';
 import {
     Building2, Globe, DollarSign, Users, Target, Lightbulb,
-    ArrowRight, ArrowLeft, CheckCircle, Sparkles, Brain,
+    ArrowRight, ArrowLeft, CheckCircle, Sparkles, Brain, Loader2
 } from 'lucide-react';
+import { organizationService } from '@/services';
+import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/components/AuthProvider';
 
 const steps = [
     { title: 'Organization', icon: Building2 },
@@ -21,7 +24,9 @@ const focusAreas = ['Research & Development', 'Product Development', 'Market Exp
 
 export default function OnboardPage() {
     const router = useRouter();
+    const { user } = useAuth();
     const [step, setStep] = useState(0);
+    const [isSaving, setIsSaving] = useState(false);
     const [form, setForm] = useState({
         name: '', sector: '', country: '', mission: '',
         fundingNeed: '', teamSize: '', focusAreas: [] as string[],
@@ -55,9 +60,38 @@ export default function OnboardPage() {
         updateForm('focusAreas', updated);
     };
 
-    const handleComplete = () => {
-        localStorage.setItem('grantagent_onboarding_data', JSON.stringify(form));
-        router.push('/auth?mode=signup');
+    const handleComplete = async () => {
+        try {
+            setIsSaving(true);
+            // Map frontend camelCase form to backend snake_case schema
+            const payload = {
+                name: form.name,
+                sector: form.sector,
+                country: form.country,
+                mission: form.mission,
+                funding_need: form.fundingNeed ? parseFloat(form.fundingNeed) : null,
+                team_size: form.teamSize,
+                focus_areas: form.focusAreas,
+                past_impact: form.pastImpact,
+                budget: form.fundingNeed ? parseFloat(form.fundingNeed) : null,
+                location: form.country,
+            };
+            const response = await organizationService.save(payload);
+            if (response?.data?.id) {
+                const orgId = response.data.id;
+                localStorage.setItem('org_id', orgId);
+                // Save org_id to Supabase profile for persistence across sessions
+                if (user?.id && user.id !== 'admin-builtin') {
+                    await supabase.from('profiles').update({ org_id: orgId }).eq('id', user.id);
+                }
+            }
+            router.push('/dashboard');
+        } catch (error) {
+            console.error('Failed to save organization:', error);
+            alert("Failed to save organization profile to database.");
+        } finally {
+            setIsSaving(false);
+        }
     };
 
     return (
@@ -245,9 +279,10 @@ export default function OnboardPage() {
                                         whileHover={{ scale: 1.02 }}
                                         whileTap={{ scale: 0.98 }}
                                         onClick={handleComplete}
-                                        className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-accent-cyan to-accent-green text-background text-sm font-semibold flex items-center gap-1"
+                                        disabled={isSaving}
+                                        className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-accent-cyan to-accent-green text-background text-sm font-semibold flex items-center gap-2 disabled:opacity-50"
                                     >
-                                        Complete Setup <CheckCircle className="w-4 h-4" />
+                                        {isSaving ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving...</> : <><CheckCircle className="w-4 h-4" /> Complete Setup</>}
                                     </motion.button>
                                 )}
                             </div>

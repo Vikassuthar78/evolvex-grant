@@ -1,22 +1,79 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import AppLayout from '@/components/layout/AppLayout';
 import ComplianceMeter from '@/components/ui/ComplianceMeter';
-import { mockComplianceChecks } from '@/lib/mock-data';
+import { complianceService } from '@/services';
 import { motion } from 'framer-motion';
 import {
     ShieldCheck, CheckCircle, AlertTriangle, XCircle,
-    Lightbulb, ArrowRight, FileText,
+    Lightbulb, ArrowRight, FileText, Loader2
 } from 'lucide-react';
 import Link from 'next/link';
 
 export default function CompliancePage() {
-    const overallScore = 72;
-    const passed = mockComplianceChecks.filter(c => c.status === 'pass').length;
-    const warnings = mockComplianceChecks.filter(c => c.status === 'warning').length;
-    const failed = mockComplianceChecks.filter(c => c.status === 'fail').length;
+    const [data, setData] = useState<any>(null);
+    const [isLoading, setIsLoading] = useState(true);
 
-    const categories = [...new Set(mockComplianceChecks.map(c => c.category))];
+    useEffect(() => {
+        const fetchCompliance = async () => {
+            try {
+                // Try to find a real application to check
+                const orgId = typeof window !== 'undefined' ? localStorage.getItem('org_id') : null;
+                let appId: string | null = null;
+
+                if (orgId) {
+                    const { applicationsService } = await import('@/services');
+                    const appRes = await applicationsService.getAll(orgId).catch(() => null);
+                    if (appRes?.applications?.length) {
+                        appId = appRes.applications[0].id;
+                    }
+                }
+
+                if (appId) {
+                    const res = await complianceService.check(appId);
+                    setData(res);
+                } else {
+                    // No real applications — show helpful fallback
+                    setData({
+                        overall_score: 0,
+                        items: [
+                            { id: 'check-1', category: 'Setup', label: 'No application found', status: 'warning', message: 'Create an application first to run compliance checks.', suggestion: 'Go to Discover Grants → select a grant → Start AI Proposal.' },
+                        ]
+                    });
+                }
+            } catch (err) {
+                console.error("Fetch compliance error:", err);
+                setData({
+                    overall_score: 0,
+                    items: [
+                        { id: 'check-1', category: 'Setup', label: 'Compliance check unavailable', status: 'warning', message: 'Could not run compliance check.', suggestion: 'Try again later or create a new application.' },
+                    ]
+                });
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        fetchCompliance();
+    }, []);
+
+    if (isLoading || !data) {
+        return (
+            <AppLayout>
+                <div className="flex flex-col items-center justify-center min-h-[50vh]">
+                    <Loader2 className="w-8 h-8 text-accent-cyan animate-spin mb-4" />
+                    <h3 className="text-base font-semibold text-text-primary">Running AI Compliance Checks...</h3>
+                </div>
+            </AppLayout>
+        );
+    }
+
+    const { overall_score: overallScore, items: checks } = data;
+    const passed = checks.filter((c: any) => c.status === 'pass').length;
+    const warnings = checks.filter((c: any) => c.status === 'warning').length;
+    const failed = checks.filter((c: any) => c.status === 'fail').length;
+
+    const categories = Array.from(new Set(checks.map((c: any) => c.category))) as string[];
 
     return (
         <AppLayout>
@@ -95,7 +152,7 @@ export default function CompliancePage() {
                             <FileText className="w-4 h-4 text-accent-cyan" /> {cat}
                         </h2>
                         <div className="space-y-3">
-                            {mockComplianceChecks.filter(c => c.category === cat).map((check, i) => (
+                            {checks.filter((c: any) => c.category === cat).map((check: any) => (
                                 <div key={check.id} className="flex items-start gap-3 p-3 rounded-xl bg-surface hover:bg-surface-hover transition-colors">
                                     <div className="mt-0.5">
                                         {check.status === 'pass' && <CheckCircle className="w-4 h-4 text-accent-green" />}
@@ -106,8 +163,8 @@ export default function CompliancePage() {
                                         <div className="flex items-center justify-between">
                                             <p className="text-sm font-medium text-text-primary">{check.label}</p>
                                             <span className={`text-[11px] px-2 py-0.5 rounded-md font-medium ${check.status === 'pass' ? 'text-accent-green bg-accent-green/10' :
-                                                    check.status === 'warning' ? 'text-accent-amber bg-accent-amber/10' :
-                                                        'text-accent-rose bg-accent-rose/10'
+                                                check.status === 'warning' ? 'text-accent-amber bg-accent-amber/10' :
+                                                    'text-accent-rose bg-accent-rose/10'
                                                 }`}>{check.status.toUpperCase()}</span>
                                         </div>
                                         <p className="text-xs text-text-muted mt-0.5">{check.message}</p>
