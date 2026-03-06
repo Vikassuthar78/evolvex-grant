@@ -5,7 +5,6 @@ env/
 .env.local
 .env.production
 __pycache__/
-*.py[cod]
 *.pyc
 .pytest_cache/
 .coverage
@@ -20,21 +19,13 @@ Thumbs.db
 *.log
 logs/
 .cache/
-# ML model files (not Python packages)
 *.safetensors
-*.bin
 sentence_transformers/
 chroma_db/
-*.db
 uploads/
 temp/
 .git/
 .gitignore
-
-# Ensure app subpackages are NOT excluded
-!app/
-!app/models/
-!app/models/*
 .railwayignore
 nixpacks.toml
 Procfile
