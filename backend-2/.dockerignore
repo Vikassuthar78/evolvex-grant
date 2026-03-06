@@ -20,7 +20,7 @@ Thumbs.db
 *.log
 logs/
 .cache/
-models/
+# ML model files (but NOT app/models/ Python package)
 *.safetensors
 *.bin
 sentence_transformers/
